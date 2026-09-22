@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>パーソナル ダッシュボード & 掲示板</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- SheetJS (xlsx.full.min.js) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans JP', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        html, body {
+            min-height: 100%;
+            min-height: 100dvh;
+            touch-action: manipulation;
+        }
+        @media (min-width: 1024px) {
+            html, body {
+                height: 100%;
+                height: 100dvh;
+                overflow: hidden;
+            }
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-header {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .dark .glass-header {
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(156, 163, 175, 0.35);
+            border-radius: 9999px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(107, 114, 128, 0.55); }
+    </style>
+</head>
+<body class="h-full w-full bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 antialiased font-sans flex flex-col selection:bg-blue-500 selection:text-white">
+
+    <!-- Header Navigation -->
+    <header class="glass-header border-b border-slate-200 dark:border-slate-800 px-2.5 sm:px-6 py-2 flex-shrink-0 z-20 shadow-xs sticky top-0 lg:relative">
+        <div class="max-w-[1600px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
+            
+            <div class="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                <div class="relative group flex-shrink-0">
+                    <label for="date-picker-input" class="cursor-pointer bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl px-2.5 sm:px-3 py-1 shadow-md shadow-blue-500/20 flex items-center gap-1.5 sm:gap-2.5 transition active:scale-95">
+                        <span id="header-day" class="text-xl sm:text-3xl font-black leading-none tracking-tight">--</span>
+                        <div class="flex flex-col leading-none">
+                            <span id="header-month" class="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider opacity-90">--月</span>
+                            <span id="header-dayofweek" class="text-[8px] sm:text-[10px] font-semibold bg-white/20 px-1 py-0.5 rounded text-center mt-0.5">---</span>
+                        </div>
+                        <i class="fa-solid fa-calendar-days text-[10px] sm:text-xs opacity-80 ml-0.5"></i>
+                    </label>
+                    <input type="date" id="date-picker-input" class="absolute opacity-0 pointer-events-none inset-0 w-full h-full cursor-pointer">
+                </div>
+
+                <div class="flex items-center bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-xl text-xs font-medium border border-slate-300/50 dark:border-slate-700 flex-shrink-0">
+                    <button id="btn-prev-day" title="前日" class="px-2 py-1.5 sm:py-1 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 transition min-w-[32px] sm:min-w-0 flex items-center justify-center">
+                        <i class="fa-solid fa-chevron-left text-[11px]"></i>
+                    </button>
+                    <button id="btn-today" title="今日" class="px-2 py-1.5 sm:py-1 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 transition text-[11px] font-bold">
+                        今日
+                    </button>
+                    <button id="btn-next-day" title="翌日" class="px-2 py-1.5 sm:py-1 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-200 transition min-w-[32px] sm:min-w-0 flex items-center justify-center">
+                        <i class="fa-solid fa-chevron-right text-[11px]"></i>
+                    </button>
+                </div>
+
+                <div class="flex flex-col min-w-0">
+                    <div class="flex items-baseline gap-2">
+                        <span id="header-clock" class="text-base sm:text-2xl font-black tracking-tight bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-400 dark:via-indigo-300 dark:to-purple-300 bg-clip-text text-transparent font-mono leading-none">
+                            --:--:--
+                        </span>
+                    </div>
+                    <div class="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                        <span id="header-full-date" class="font-medium">----年--月--日 (-)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                <button id="btn-auth-google" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-300/60 dark:border-slate-700 transition active:scale-95 shadow-xs">
+                    <i class="fa-brands fa-google text-blue-500"></i>
+                    <span id="auth-status-text">Google ログイン</span>
+                </button>
+
+                <!-- 【復活】Google API 設定ボタン -->
+                <button id="btn-open-api-modal" title="Google API 設定" class="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 shadow-xs transition active:scale-95 text-xs">
+                    <i class="fa-solid fa-gear text-slate-600 dark:text-slate-300"></i>
+                </button>
+
+                <button id="btn-sync" title="データ更新・同期" class="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 shadow-xs transition active:scale-95 text-xs">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <button id="btn-toggle-theme" title="テーマ切り替え" class="p-2 sm:p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-200 shadow-xs transition active:scale-95 text-xs">
+                    <i class="fa-solid fa-moon dark:hidden text-slate-600"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto p-2.5 sm:p-3 flex flex-col gap-2.5 min-h-0 lg:overflow-hidden overflow-y-auto">
+
+        <!-- Mobile Nav Tabs -->
+        <div class="lg:hidden flex items-center bg-slate-200/70 dark:bg-slate-800/80 p-1 rounded-xl gap-1 text-xs font-semibold flex-shrink-0">
+            <button data-target-card="card-tasks" class="btn-mobile-nav active flex-1 py-1.5 rounded-lg text-center bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-list-check"></i> ToDo
+            </button>
+            <button data-target-card="card-calendar" class="btn-mobile-nav flex-1 py-1.5 rounded-lg text-center text-slate-600 dark:text-slate-400 transition flex items-center justify-center gap-1.5">
+                <i class="fa-regular fa-calendar-check"></i> カレンダー
+            </button>
+            <button data-target-card="card-bulletin" class="btn-mobile-nav flex-1 py-1.5 rounded-lg text-center text-slate-600 dark:text-slate-400 transition flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-thumbtack"></i> 掲示板
+            </button>
+        </div>
+
+        <!-- Banner Ribbon -->
+        <div class="glass-panel rounded-xl px-3 py-1.5 flex items-center justify-between gap-2 border-l-4 border-l-blue-500 shadow-xs flex-shrink-0">
+            <div class="flex items-center gap-2 min-w-0">
+                <i id="banner-icon" class="fa-solid fa-calendar-check text-blue-500 text-xs sm:text-sm flex-shrink-0"></i>
+                <p id="banner-text" class="text-[11px] sm:text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
+                    GoogleログインまたはAPI設定からトークンを入力すると、カレンダー/ToDoが同期されます。
+                </p>
+            </div>
+        </div>
+
+        <!-- Dashboard Main Grid -->
+        <div class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 min-h-0">
+
+            <!-- 1. Google ToDo List Card -->
+            <div id="card-tasks" class="glass-panel rounded-2xl p-3 sm:p-3.5 shadow-xs flex flex-col min-h-[360px] lg:min-h-0">
+                <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-700/60 flex-shrink-0">
+                    <div class="flex items-center gap-2">
+                        <div class="p-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-lg">
+                            <i class="fa-solid fa-list-check text-sm"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xs font-bold text-slate-800 dark:text-slate-100">Google ToDo リスト</h2>
+                            <p class="text-[10px] text-slate-400">複数タスクリスト全取得・色分け対応</p>
+                        </div>
+                    </div>
+                    <span id="task-count" class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold">0件</span>
+                </div>
+
+                <form id="form-add-task" class="flex flex-wrap sm:flex-nowrap gap-1.5 mb-2 flex-shrink-0">
+                    <select id="select-task-list" class="w-full sm:w-auto px-2 py-2 sm:py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                        <option value="@default">マイタスク</option>
+                    </select>
+                    <div class="flex gap-1.5 w-full sm:w-auto flex-1">
+                        <input type="text" id="input-task-title" placeholder="新しいタスクを入力..." required
+                            class="flex-1 min-w-0 px-2.5 py-2 sm:py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-100">
+                        <button type="submit" class="px-3 py-2 sm:py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-xl shadow-xs transition active:scale-95 flex items-center justify-center flex-shrink-0 min-w-[40px]">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="flex items-center gap-1 mb-2 text-[11px] bg-slate-100 dark:bg-slate-800/60 p-0.5 rounded-lg flex-shrink-0">
+                    <button id="filter-task-all" type="button" class="btn-task-filter flex-1 py-1 sm:py-0.5 rounded-md font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 text-center transition">すべて</button>
+                    <button id="filter-task-pending" type="button" class="btn-task-filter active flex-1 py-1 sm:py-0.5 rounded-md font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-xs text-center transition">未完了</button>
+                    <button id="filter-task-completed" type="button" class="btn-task-filter flex-1 py-1 sm:py-0.5 rounded-md font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 text-center transition">完了済み</button>
+                </div>
+
+                <div id="task-lists-legend-container" class="flex items-center gap-1.5 mb-2 px-1 py-1 text-[10px] text-slate-500 flex-shrink-0 overflow-x-auto custom-scroll">
+                </div>
+
+                <div id="tasks-container" class="flex-1 min-h-[180px] lg:min-h-0 overflow-y-auto custom-scroll pr-1 space-y-1.5">
+                </div>
+            </div>
+
+            <!-- 2. Google Calendar Events Card -->
+            <div id="card-calendar" class="glass-panel rounded-2xl p-3 sm:p-3.5 shadow-xs flex flex-col min-h-[360px] lg:min-h-0">
+                <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-700/60 flex-shrink-0">
+                    <div class="flex items-center gap-2">
+                        <div class="p-1.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                            <i class="fa-regular fa-calendar-check text-sm"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-xs font-bold text-slate-800 dark:text-slate-100">カレンダー予定</h2>
+                            <p id="calendar-card-subtitle" class="text-[10px] text-slate-400">複数のマイカレンダー対応</p>
+                        </div>
+                    </div>
+                    <button id="btn-add-event-modal" class="text-[11px] px-2.5 py-1.5 sm:py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 font-medium transition flex items-center gap-1 active:scale-95">
+                        <i class="fa-solid fa-plus text-[9px]"></i> 予定追加
+                    </button>
+                </div>
+
+                <div id="calendar-legend-container" class="flex items-center gap-1.5 mb-2 px-1 py-1 text-[10px] text-slate-500 flex-shrink-0 overflow-x-auto custom-scroll">
+                </div>
+
+                <div id="calendar-events-container" class="flex-1 min-h-[180px] lg:min-h-0 overflow-y-auto custom-scroll pr-1 space-y-2">
+                </div>
+            </div>
+
+            <!-- 3. Bulletin Board Card -->
+            <div id="card-bulletin" class="glass-panel rounded-2xl p-3 sm:p-3.5 shadow-xs flex flex-col min-h-[380px] lg:min-h-0 md:col-span-2 lg:col-span-1">
+                <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-700/60 flex-shrink-0">
+                    <div class="flex items-center gap-2">
+                        <div class="p-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                            <i class="fa-solid fa-thumbtack text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-1.5">
+                                <h2 class="text-xs font-bold text-slate-800 dark:text-slate-100">掲示板</h2>
+                                <span id="bulletin-cloud-badge" class="hidden text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-300/60 dark:border-emerald-800 flex items-center gap-1">
+                                    <i class="fa-solid fa-cloud text-[8px] animate-pulse"></i> 同期中
+                                </span>
+                            </div>
+                            <p class="text-[10px] text-slate-400">ログイン中のみ表示・編集可能</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button id="btn-add-board-modal" class="text-[11px] px-2 py-1 sm:py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-indigo-300 hover:bg-emerald-100 font-medium transition flex items-center gap-1 active:scale-95">
+                            <i class="fa-solid fa-plus text-[9px]"></i> 投稿
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-1 mb-2 text-[11px] flex-shrink-0 overflow-x-auto pb-0.5 custom-scroll">
+                    <button data-cat="all" class="btn-board-cat active px-2.5 py-1 sm:py-0.5 rounded-md bg-emerald-600 text-white font-medium whitespace-nowrap transition">すべて</button>
+                    <button data-cat="notice" class="btn-board-cat px-2.5 py-1 sm:py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap transition">行事予定</button>
+                    <button data-cat="memo" class="btn-board-cat px-2.5 py-1 sm:py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap transition">メモ</button>
+                    <button data-cat="urgent" class="btn-board-cat px-2.5 py-1 sm:py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap transition">重要</button>
+                </div>
+
+                <div id="bulletin-board-container" class="flex-1 min-h-[180px] lg:min-h-0 overflow-y-auto custom-scroll pr-1 space-y-2">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Quick Links Footer -->
+        <div class="glass-panel rounded-xl p-2 shadow-xs flex-shrink-0">
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <a href="https://mail.google.com" target="_blank" rel="noopener" class="p-1.5 rounded-lg bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center gap-2 transition group shadow-xs">
+                    <i class="fa-solid fa-envelope text-red-500 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300">Gmail</span>
+                </a>
+                <a href="https://calendar.google.com" target="_blank" rel="noopener" class="p-1.5 rounded-lg bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center gap-2 transition group shadow-xs">
+                    <i class="fa-solid fa-calendar-days text-blue-500 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300">Calendar</span>
+                </a>
+                <a href="https://drive.google.com" target="_blank" rel="noopener" class="p-1.5 rounded-lg bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center gap-2 transition group shadow-xs">
+                    <i class="fa-solid fa-hard-drive text-amber-500 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300">Drive</span>
+                </a>
+                <a href="https://tasks.google.com" target="_blank" rel="noopener" class="p-1.5 rounded-lg bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center gap-2 transition group shadow-xs">
+                    <i class="fa-solid fa-square-check text-emerald-500 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300">Tasks</span>
+                </a>
+                <a href="https://meet.google.com" target="_blank" rel="noopener" class="p-1.5 rounded-lg bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center gap-2 transition group shadow-xs">
+                    <i class="fa-solid fa-video text-cyan-500 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300">Meet</span>
+                </a>
+                <a href="https://github.com" target="_blank" rel="noopener" class="p-1.5 rounded-lg bg-white/60 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-center gap-2 transition group shadow-xs">
+                    <i class="fa-brands fa-github text-slate-800 dark:text-slate-100 text-sm group-hover:scale-110 transition-transform"></i>
+                    <span class="text-[11px] font-medium text-slate-700 dark:text-slate-300">GitHub</span>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- 【復活】Google API 設定モーダル -->
+    <div id="modal-api-settings" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-5 shadow-xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <div class="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-700">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-key text-blue-500"></i> Google API 連携設定
+                </h3>
+                <button id="btn-close-api-modal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+            <form id="form-api-settings" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">OAuth アクセストークン</label>
+                    <input type="password" id="input-access-token" placeholder="ya29.a0..." class="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono">
+                    <p class="text-[10px] text-slate-400 mt-1">※Googleログイン成功時に自動設定されるほか、OAuth 2.0 Playgroundで取得したトークンの手動入力も可能です。</p>
+                </div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" id="btn-clear-token" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200">クリア</button>
+                    <button type="submit" class="px-4 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md">保存して同期</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Calendar Event Modal -->
+    <div id="modal-event" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-200 dark:border-slate-700 space-y-3">
+            <div class="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-700">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-regular fa-calendar-plus text-indigo-500"></i> カレンダー予定追加
+                </h3>
+                <button id="btn-close-event-modal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+            <form id="form-add-event" class="space-y-2.5">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">追加先のマイカレンダー</label>
+                    <select id="select-target-calendar" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="primary">メインカレンダー</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">件名</label>
+                    <input type="text" id="event-title" required placeholder="ミーティング、打合せなど" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">日付</label>
+                        <input type="date" id="event-date" required class="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">時間</label>
+                        <input type="time" id="event-time" required class="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">場所 / メモ</label>
+                    <input type="text" id="event-location" placeholder="オンライン / 会議室A" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button type="submit" class="px-4 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md">追加する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Bulletin Modal -->
+    <div id="modal-bulletin" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-xl border border-slate-200 dark:border-slate-700 space-y-3">
+            <div class="flex items-center justify-between border-b pb-2 border-slate-200 dark:border-slate-700">
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-emerald-500"></i> 掲示板への投稿
+                </h3>
+                <button id="btn-close-bulletin-modal" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+            <form id="form-add-bulletin" class="space-y-2.5">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">タイトル</label>
+                    <input type="text" id="bulletin-title" required placeholder="お知らせの見出し" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">カテゴリー</label>
+                    <select id="bulletin-category" class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="notice">行事予定</option>
+                        <option value="memo">メモ</option>
+                        <option value="urgent">重要</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">本文内容</label>
+                    <textarea id="bulletin-content" rows="3" required placeholder="詳細を入力してください..." class="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="bulletin-pinned" class="rounded text-emerald-600 focus:ring-emerald-500">
+                    <label for="bulletin-pinned" class="text-xs text-slate-700 dark:text-slate-300">上部にピン留めする</label>
+                </div>
+                <div class="flex justify-end pt-1">
+                    <button type="submit" class="px-4 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md">投稿する</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDEAZ1ypPitInK6E6UQA3MvkxZEPIVBPc4",
+            authDomain: "myboard-543de.firebaseapp.com",
+            projectId: "myboard-543de",
+            storageBucket: "myboard-543de.firebasestorage.app",
+            messagingSenderId: "259909646089",
+            appId: "1:259909646089:web:c381a38342f1716b38c5d8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/tasks');
+        provider.addScope('https://www.googleapis.com/auth/calendar.events');
+        provider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+
+        let currentUser = null;
+        let googleAccessToken = localStorage.getItem('dashboard_google_token') || null;
+        let unsubscribeBulletin = null;
+
+        const DAYS_JP = ['日', '月', '火', '水', '木', '金', '土'];
+        const DEFAULT_CALENDAR_COLORS = ['#039be5', '#7986cb', '#33b679', '#8e24aa', '#e67c73', '#f6bf26', '#f4511e'];
+        const DYNAMIC_TASK_COLORS = [
+            'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+            'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+            'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+        ];
+
+        let userCalendars = JSON.parse(localStorage.getItem('dashboard_user_calendars')) || [];
+        let userTaskLists = JSON.parse(localStorage.getItem('dashboard_user_tasklists')) || [];
+
+        let selectedTaskListId = 'all'; 
+        let selectedCalendarId = 'all';
+
+        let selectedDate = new Date();
+        let taskFilter = 'pending';
+        let boardCategory = 'all';
+
+        let tasks = JSON.parse(localStorage.getItem('dashboard_tasks')) || [];
+        let calendarEvents = JSON.parse(localStorage.getItem('dashboard_events')) || [];
+        let bulletinPosts = [];
+
+        // Auth Listener
+        onAuthStateChanged(auth, async (user) => {
+            currentUser = user;
+            if (user) {
+                updateAuthStatusUI(true, user.displayName || user.email);
+                showToast(`${user.displayName || 'ユーザー'} としてログインしました`, 'success');
+                
+                subscribeCloudBulletinPosts();
+
+                if (googleAccessToken) {
+                    syncGoogleData();
+                }
+            } else {
+                updateAuthStatusUI(false);
+                if (unsubscribeBulletin) unsubscribeBulletin();
+                bulletinPosts = [];
+                renderBulletinBoard();
+                const badge = document.getElementById('bulletin-cloud-badge');
+                if (badge) badge.classList.add('hidden');
+            }
+        });
+
+        async function handleGoogleLogin() {
+            if (currentUser) {
+                if (confirm('ログアウトしますか？')) {
+                    await signOut(auth);
+                    googleAccessToken = null;
+                    localStorage.removeItem('dashboard_google_token');
+                    showToast('ログアウトしました', 'info');
+                }
+            } else {
+                try {
+                    const result = await signInWithPopup(auth, provider);
+                    const credential = GoogleAuthProvider.credentialFromResult(result);
+                    if (credential) {
+                        googleAccessToken = credential.accessToken;
+                        localStorage.setItem('dashboard_google_token', googleAccessToken);
+                        syncGoogleData();
+                    }
+                } catch (error) {
+                    console.error("Login failed:", error);
+                    showToast('ログインに失敗しました', 'warning');
+                }
+            }
+        }
+
+        function updateAuthStatusUI(isConnected, name = '') {
+            const btnAuth = document.getElementById('btn-auth-google');
+            const statusText = document.getElementById('auth-status-text');
+            if (isConnected) {
+                statusText.textContent = `${name.split(' ')[0]} (ログアウト)`;
+                btnAuth.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold border border-emerald-300 dark:border-emerald-800';
+            } else {
+                statusText.textContent = 'Google ログイン';
+                btnAuth.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-300/60 dark:border-slate-700 transition active:scale-95';
+            }
+        }
+
+        function subscribeCloudBulletinPosts() {
+            if (!db || !currentUser) return;
+            const bulletinColRef = collection(db, 'bulletinPosts');
+
+            if (unsubscribeBulletin) unsubscribeBulletin();
+
+            unsubscribeBulletin = onSnapshot(bulletinColRef, (snapshot) => {
+                const cloudPosts = [];
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    cloudPosts.push({
+                        id: docSnap.id,
+                        title: data.title || '',
+                        category: data.category || 'notice',
+                        content: data.content || '',
+                        pinned: !!data.pinned,
+                        date: data.date || formatDateIso(new Date())
+                    });
+                });
+
+                bulletinPosts = cloudPosts;
+                renderBulletinBoard();
+
+                const badge = document.getElementById('bulletin-cloud-badge');
+                if (badge) badge.classList.remove('hidden');
+            }, (error) => {
+                console.error("Cloud bulletin access denied:", error);
+                showToast('掲示板のデータ取得権限がありません', 'warning');
+            });
+        }
+
+        async function fetchGoogleTaskLists() {
+            if (!googleAccessToken) return userTaskLists;
+            try {
+                const listRes = await fetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
+                    headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                });
+                const listData = await listRes.json();
+                if (listData.items) {
+                    userTaskLists = listData.items.map((item, idx) => ({
+                        id: item.id,
+                        title: item.title || 'マイタスク',
+                        colorClass: DYNAMIC_TASK_COLORS[idx % DYNAMIC_TASK_COLORS.length]
+                    }));
+                    localStorage.setItem('dashboard_user_tasklists', JSON.stringify(userTaskLists));
+                    updateTaskListSelectOptions();
+                    renderTaskListsLegend();
+                }
+            } catch (err) {
+                console.error('Fetch Task Lists Error:', err);
+            }
+            return userTaskLists;
+        }
+
+        function updateTaskListSelectOptions() {
+            const selectEl = document.getElementById('select-task-list');
+            if (selectEl && userTaskLists.length > 0) {
+                selectEl.innerHTML = userTaskLists.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.title)}</option>`).join('');
+            }
+        }
+
+        async function fetchGoogleTasks() {
+            if (!googleAccessToken) return;
+            try {
+                const taskLists = await fetchGoogleTaskLists();
+                if (!taskLists || taskLists.length === 0) return;
+                const allRemoteTasks = [];
+
+                await Promise.all(taskLists.map(async (tList) => {
+                    const taskRes = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(tList.id)}/tasks?showCompleted=true&showHidden=true`, {
+                        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                    });
+                    const taskData = await taskRes.json();
+                    if (taskData.items) {
+                        taskData.items.forEach(item => {
+                            allRemoteTasks.push({
+                                id: item.id,
+                                listId: tList.id,
+                                list: tList.title,
+                                title: item.title || '無題のタスク',
+                                completed: item.status === 'completed',
+                                date: item.due ? item.due.split('T')[0] : formatDateIso(new Date())
+                            });
+                        });
+                    }
+                }));
+
+                tasks = allRemoteTasks;
+                saveData();
+                renderTasks();
+            } catch (err) {
+                console.error('Google Tasks Fetch Error:', err);
+            }
+        }
+
+        async function fetchGoogleCalendarList() {
+            if (!googleAccessToken) return userCalendars;
+            try {
+                const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+                    headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                });
+                const data = await res.json();
+                if (data.items) {
+                    userCalendars = data.items.map((cal, idx) => ({
+                        id: cal.id,
+                        summary: cal.summaryOverride || cal.summary || 'マイカレンダー',
+                        backgroundColor: cal.backgroundColor || DEFAULT_CALENDAR_COLORS[idx % DEFAULT_CALENDAR_COLORS.length],
+                        primary: !!cal.primary
+                    }));
+                    localStorage.setItem('dashboard_user_calendars', JSON.stringify(userCalendars));
+                    updateCalendarSelectOptions();
+                    renderCalendarLegend();
+                }
+            } catch (err) {
+                console.error('Fetch Calendar List Error:', err);
+            }
+            return userCalendars;
+        }
+
+        function updateCalendarSelectOptions() {
+            const selectEl = document.getElementById('select-target-calendar');
+            if (selectEl && userCalendars.length > 0) {
+                selectEl.innerHTML = userCalendars.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.summary)}${c.primary ? ' (メイン)' : ''}</option>`).join('');
+            }
+        }
+
+        async function fetchGoogleCalendarEvents() {
+            if (!googleAccessToken) return;
+            try {
+                const cals = await fetchGoogleCalendarList();
+                if (!cals || cals.length === 0) return;
+
+                const timeMin = new Date();
+                timeMin.setMonth(timeMin.getMonth() - 1);
+                const timeMax = new Date();
+                timeMax.setMonth(timeMax.getMonth() + 2);
+
+                const allRemoteEvents = [];
+
+                await Promise.all(cals.map(async (cal) => {
+                    const encodedCalId = encodeURIComponent(cal.id);
+                    const calUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodedCalId}/events?timeMin=${timeMin.toISOString()}&timeMax=${timeMax.toISOString()}&singleEvents=true&orderBy=startTime`;
+                    const calRes = await fetch(calUrl, {
+                        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                    });
+                    const calData = await calRes.json();
+
+                    if (calData.items) {
+                        calData.items.forEach(item => {
+                            const startDateTime = item.start?.dateTime || item.start?.date || '';
+                            const datePart = startDateTime.split('T')[0] || formatDateIso(new Date());
+                            const timePart = startDateTime.includes('T') ? startDateTime.split('T')[1].substring(0, 5) : '終日';
+
+                            allRemoteEvents.push({
+                                id: item.id,
+                                calendarId: cal.id,
+                                calendarName: cal.summary,
+                                color: cal.backgroundColor,
+                                title: item.summary || '（件名なし）',
+                                date: datePart,
+                                time: timePart,
+                                location: item.location || ''
+                            });
+                        });
+                    }
+                }));
+
+                calendarEvents = allRemoteEvents;
+                saveData();
+                renderCalendarEvents();
+            } catch (err) {
+                console.error('Google Calendar Events Fetch Error:', err);
+            }
+        }
+
+        async function syncGoogleData() {
+            if (!googleAccessToken) {
+                showToast('Google APIアクセストークンを設定してください', 'warning');
+                return;
+            }
+            showToast('Google APIと同期中...', 'info');
+            await Promise.all([fetchGoogleTasks(), fetchGoogleCalendarEvents()]);
+            showToast('カレンダーとToDoの同期が完了しました', 'success');
+        }
+
+        function renderTaskListsLegend() {
+            const container = document.getElementById('task-lists-legend-container');
+            if (!container) return;
+
+            let html = `
+                <button type="button" onclick="filterTaskByList('all')" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[9px] font-bold cursor-pointer transition ${selectedTaskListId === 'all' ? 'bg-slate-700 text-white border-slate-600 ring-2 ring-inset ring-blue-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}">
+                    全リスト
+                </button>
+            `;
+
+            userTaskLists.forEach(l => {
+                const isSelected = selectedTaskListId === l.id;
+                html += `
+                    <button type="button" onclick="filterTaskByList('${escapeHtml(l.id)}')" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border font-semibold text-[9px] cursor-pointer transition active:scale-95 ${l.colorClass} ${isSelected ? 'ring-2 ring-inset ring-blue-500 font-bold' : 'opacity-80 hover:opacity-100'}">
+                        ${escapeHtml(l.title)}
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderCalendarLegend() {
+            const container = document.getElementById('calendar-legend-container');
+            if (!container) return;
+
+            let html = `
+                <button type="button" onclick="filterCalendarByCal('all')" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9px] font-bold cursor-pointer transition whitespace-nowrap ${selectedCalendarId === 'all' ? 'bg-indigo-600 text-white border-indigo-700 ring-2 ring-inset ring-indigo-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}">
+                    全カレンダー
+                </button>
+            `;
+
+            userCalendars.forEach(cal => {
+                const isSelected = selectedCalendarId === cal.id;
+                html += `
+                    <button type="button" onclick="filterCalendarByCal('${escapeHtml(cal.id)}')" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border whitespace-nowrap cursor-pointer transition active:scale-95 ${isSelected ? 'bg-slate-200 dark:bg-slate-700 border-indigo-500 ring-2 ring-inset ring-indigo-500 font-bold' : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-80 hover:opacity-100'}">
+                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${cal.backgroundColor}"></span>
+                        <span class="font-medium text-[10px] text-slate-700 dark:text-slate-300">${escapeHtml(cal.summary)}</span>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function filterTaskByList(listId) {
+            selectedTaskListId = (selectedTaskListId === listId) ? 'all' : listId;
+            renderTaskListsLegend();
+            renderTasks();
+        }
+
+        function filterCalendarByCal(calId) {
+            selectedCalendarId = (selectedCalendarId === calId) ? 'all' : calId;
+            renderCalendarLegend();
+            renderCalendarEvents();
+        }
+
+        function formatDateIso(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function saveData() {
+            localStorage.setItem('dashboard_tasks', JSON.stringify(tasks));
+            localStorage.setItem('dashboard_events', JSON.stringify(calendarEvents));
+        }
+
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800 text-white';
+            let icon = 'fa-circle-info';
+            if (type === 'success') { bgClass = 'bg-emerald-600 text-white'; icon = 'fa-circle-check'; }
+            else if (type === 'warning') { bgClass = 'bg-amber-600 text-white'; icon = 'fa-triangle-exclamation'; }
+
+            toast.className = `px-3.5 py-2 rounded-xl text-xs font-medium ${bgClass} shadow-lg flex items-center gap-2 transform transition-all duration-300 opacity-0 translate-y-2 pointer-events-auto`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${message}</span>`;
+            
+            toastContainer.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.remove('opacity-0', 'translate-y-2'));
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const clockEl = document.getElementById('header-clock');
+            if (clockEl) clockEl.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        function updateHeaderDateDisplay() {
+            const day = selectedDate.getDate();
+            const month = (selectedDate.getMonth() + 1) + '月';
+            const dayOfWeek = DAYS_JP[selectedDate.getDay()] + '曜日';
+            const year = selectedDate.getFullYear();
+
+            document.getElementById('header-day').textContent = day;
+            document.getElementById('header-month').textContent = month;
+            document.getElementById('header-dayofweek').textContent = dayOfWeek;
+            document.getElementById('header-full-date').textContent = `${year}年${month}${day}日 (${DAYS_JP[selectedDate.getDay()]})`;
+
+            const dateInput = document.getElementById('date-picker-input');
+            if (dateInput) dateInput.value = formatDateIso(selectedDate);
+
+            renderTasks();
+            renderCalendarEvents();
+            renderBulletinBoard();
+        }
+
+        function renderTasks() {
+            const container = document.getElementById('tasks-container');
+            const selectedIso = formatDateIso(selectedDate);
+
+            let filtered = tasks.filter(t => t.date === selectedIso);
+            if (selectedTaskListId !== 'all') filtered = filtered.filter(t => t.listId === selectedTaskListId || t.list === selectedTaskListId);
+            if (taskFilter === 'pending') filtered = filtered.filter(t => !t.completed);
+            else if (taskFilter === 'completed') filtered = filtered.filter(t => t.completed);
+
+            document.getElementById('task-count').textContent = `${filtered.length}件`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="h-32 flex flex-col items-center justify-center text-slate-400 text-xs"><i class="fa-regular fa-clipboard text-2xl mb-1.5 opacity-50"></i><span>タスクはありません</span></div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(task => {
+                const matchedList = userTaskLists.find(l => l.id === task.listId || l.title === task.list);
+                const badgeStyle = matchedList ? matchedList.colorClass : DYNAMIC_TASK_COLORS[0];
+
+                return `
+                    <div class="flex items-center justify-between p-2 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200/70 dark:border-slate-700/60 shadow-2xs hover:border-slate-300 dark:hover:border-slate-600 transition group">
+                        <div class="flex items-center gap-2.5 min-w-0 flex-1">
+                            <button onclick="toggleTask('${task.id}', '${task.listId || '@default'}')" class="text-slate-400 hover:text-blue-500 transition text-sm flex-shrink-0">
+                                ${task.completed ? '<i class="fa-solid fa-circle-check text-emerald-500"></i>' : '<i class="fa-regular fa-circle"></i>'}
+                            </button>
+                            <span class="text-xs ${task.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-100'} font-medium truncate">
+                                ${escapeHtml(task.title)}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                            <span class="text-[9px] px-2 py-0.5 rounded-md border font-semibold ${badgeStyle}">
+                                ${escapeHtml(task.list || 'マイタスク')}
+                            </span>
+                            <button onclick="deleteTask('${task.id}', '${task.listId || '@default'}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 transition text-xs">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function toggleTask(id, listId = '@default') {
+            const task = tasks.find(t => t.id === id);
+            if (!task) return;
+            const newStatus = !task.completed;
+
+            if (googleAccessToken && task.listId) {
+                try {
+                    await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(task.listId)}/tasks/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Authorization': `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: newStatus ? 'completed' : 'needsAction' })
+                    });
+                } catch (err) { console.error(err); }
+            }
+
+            tasks = tasks.map(t => t.id === id ? { ...t, completed: newStatus } : t);
+            saveData();
+            renderTasks();
+        }
+
+        async function deleteTask(id, listId = '@default') {
+            if (googleAccessToken && listId) {
+                try {
+                    await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(listId)}/tasks/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                    });
+                } catch (err) { console.error(err); }
+            }
+            tasks = tasks.filter(t => t.id !== id);
+            saveData();
+            renderTasks();
+            showToast('タスクを削除しました', 'warning');
+        }
+
+        function renderCalendarEvents() {
+            const container = document.getElementById('calendar-events-container');
+            const selectedIso = formatDateIso(selectedDate);
+
+            let events = calendarEvents.filter(e => e.date === selectedIso);
+            if (selectedCalendarId !== 'all') events = events.filter(e => e.calendarId === selectedCalendarId);
+            events.sort((a, b) => a.time.localeCompare(b.time));
+
+            if (events.length === 0) {
+                container.innerHTML = `<div class="h-36 flex flex-col items-center justify-center text-slate-400 text-xs"><i class="fa-regular fa-calendar-xmark text-2xl mb-1.5 opacity-50"></i><span>この日の予定はありません</span></div>`;
+                return;
+            }
+
+            container.innerHTML = events.map(evt => {
+                const calColor = evt.color || '#4f46e5';
+                return `
+                    <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between gap-2 transition hover:shadow-xs group relative overflow-hidden">
+                        <div class="absolute left-0 top-0 bottom-0 w-1.5" style="background-color: ${calColor}"></div>
+                        <div class="space-y-1 min-w-0 flex-1 pl-1.5">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold font-mono" style="background-color: ${calColor}">
+                                    ${evt.time}
+                                </span>
+                                <h3 class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate flex-1">${escapeHtml(evt.title)}</h3>
+                            </div>
+                            ${evt.location ? `<p class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1"><i class="fa-solid fa-location-dot text-[10px]" style="color: ${calColor}"></i> ${escapeHtml(evt.location)}</p>` : ''}
+                        </div>
+                        <button onclick="deleteCalendarEvent('${evt.id}', '${evt.calendarId || 'primary'}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-1 transition text-xs flex-shrink-0">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function deleteCalendarEvent(id, calendarId = 'primary') {
+            if (googleAccessToken) {
+                try {
+                    const encodedCalId = encodeURIComponent(calendarId);
+                    await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodedCalId}/events/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${googleAccessToken}` }
+                    });
+                } catch (err) { console.error(err); }
+            }
+            calendarEvents = calendarEvents.filter(e => e.id !== id);
+            saveData();
+            renderCalendarEvents();
+            showToast('予定を削除しました', 'warning');
+        }
+
+        function renderBulletinBoard() {
+            const container = document.getElementById('bulletin-board-container');
+            if (!currentUser) {
+                container.innerHTML = `
+                    <div class="h-36 flex flex-col items-center justify-center text-slate-400 text-xs space-y-2">
+                        <i class="fa-solid fa-lock text-2xl text-amber-500/80"></i>
+                        <span>右上の「Google ログイン」で保護されています</span>
+                    </div>
+                `;
+                return;
+            }
+
+            const selectedIso = formatDateIso(selectedDate);
+            let filtered = bulletinPosts.filter(p => p.date === selectedIso);
+            if (boardCategory !== 'all') filtered = filtered.filter(p => p.category === boardCategory);
+            filtered.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="h-36 flex flex-col items-center justify-center text-slate-400 text-xs"><i class="fa-regular fa-folder-open text-2xl mb-1.5 opacity-50"></i><span>投稿はありません</span></div>`;
+                return;
+            }
+
+            const catBadgeMap = {
+                'notice': 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',
+                'urgent': 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+                'memo': 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+            };
+            const catLabelMap = { 'notice': '行事予定', 'urgent': '重要', 'memo': 'メモ' };
+
+            container.innerHTML = filtered.map(post => `
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 border ${post.pinned ? 'border-amber-400/80 dark:border-amber-500/50 shadow-xs' : 'border-slate-200/80 dark:border-slate-700/70'} space-y-1.5 relative group">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            ${post.pinned ? '<i class="fa-solid fa-thumbtack text-amber-500 text-xs flex-shrink-0"></i>' : ''}
+                            <span class="text-[9px] px-1.5 py-0.5 rounded font-bold ${catBadgeMap[post.category] || 'bg-slate-100'} flex-shrink-0">
+                                ${catLabelMap[post.category] || '投稿'}
+                            </span>
+                            <h3 class="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">${escapeHtml(post.title)}</h3>
+                        </div>
+                        <div class="flex items-center gap-1 flex-shrink-0">
+                            <span class="text-[9px] text-slate-400 font-mono">${post.date || ''}</span>
+                            <button onclick="deleteBulletinPost('${post.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-0.5 transition text-xs">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">${escapeHtml(post.content)}</p>
+                </div>
+            `).join('');
+        }
+
+        async function deleteBulletinPost(id) {
+            if (db && currentUser) {
+                try {
+                    const docRef = doc(db, 'bulletinPosts', id);
+                    await deleteDoc(docRef);
+                    showToast('投稿を削除しました', 'warning');
+                } catch (err) {
+                    console.error(err);
+                    showToast('削除に失敗しました', 'warning');
+                }
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        }
+
+        window.toggleTask = toggleTask;
+        window.deleteTask = deleteTask;
+        window.deleteCalendarEvent = deleteCalendarEvent;
+        window.deleteBulletinPost = deleteBulletinPost;
+        window.filterTaskByList = filterTaskByList;
+        window.filterCalendarByCal = filterCalendarByCal;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            document.getElementById('btn-auth-google').addEventListener('click', handleGoogleLogin);
+            document.getElementById('btn-sync').addEventListener('click', syncGoogleData);
+
+            // API Modal Event Listeners
+            const apiModal = document.getElementById('modal-api-settings');
+            const tokenInput = document.getElementById('input-access-token');
+
+            document.getElementById('btn-open-api-modal').addEventListener('click', () => {
+                tokenInput.value = googleAccessToken || '';
+                apiModal.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-api-modal').addEventListener('click', () => {
+                apiModal.classList.add('hidden');
+            });
+
+            document.getElementById('form-api-settings').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const tokenVal = tokenInput.value.trim();
+                if (tokenVal) {
+                    googleAccessToken = tokenVal;
+                    localStorage.setItem('dashboard_google_token', tokenVal);
+                    showToast('アクセストークンを保存しました', 'success');
+                    syncGoogleData();
+                } else {
+                    googleAccessToken = null;
+                    localStorage.removeItem('dashboard_google_token');
+                    showToast('トークンを解除しました', 'info');
+                }
+                apiModal.classList.add('hidden');
+            });
+
+            document.getElementById('btn-clear-token').addEventListener('click', () => {
+                tokenInput.value = '';
+            });
+
+            document.getElementById('btn-prev-day').addEventListener('click', () => {
+                selectedDate.setDate(selectedDate.getDate() - 1);
+                updateHeaderDateDisplay();
+            });
+            document.getElementById('btn-today').addEventListener('click', () => {
+                selectedDate = new Date();
+                updateHeaderDateDisplay();
+            });
+            document.getElementById('btn-next-day').addEventListener('click', () => {
+                selectedDate.setDate(selectedDate.getDate() + 1);
+                updateHeaderDateDisplay();
+            });
+            document.getElementById('date-picker-input').addEventListener('change', (e) => {
+                if (e.target.value) {
+                    selectedDate = new Date(e.target.value + 'T00:00:00');
+                    updateHeaderDateDisplay();
+                }
+            });
+
+            document.getElementById('btn-toggle-theme').addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+            });
+
+            const eventModal = document.getElementById('modal-event');
+            const bulletinModal = document.getElementById('modal-bulletin');
+
+            document.getElementById('btn-add-event-modal').addEventListener('click', () => {
+                document.getElementById('event-date').value = formatDateIso(selectedDate);
+                eventModal.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-event-modal').addEventListener('click', () => eventModal.classList.add('hidden'));
+
+            document.getElementById('btn-add-board-modal').addEventListener('click', () => {
+                if (!currentUser) {
+                    showToast('掲示板を利用するにはGoogleログインが必要です', 'warning');
+                    return;
+                }
+                bulletinModal.classList.remove('hidden');
+            });
+            document.getElementById('btn-close-bulletin-modal').addEventListener('click', () => bulletinModal.classList.add('hidden'));
+
+            document.getElementById('form-add-bulletin').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const title = document.getElementById('bulletin-title').value.trim();
+                const category = document.getElementById('bulletin-category').value;
+                const content = document.getElementById('bulletin-content').value.trim();
+                const pinned = document.getElementById('bulletin-pinned').checked;
+
+                if (!title || !content || !currentUser) return;
+
+                const newPost = {
+                    title,
+                    category,
+                    content,
+                    pinned,
+                    date: formatDateIso(selectedDate),
+                    authorUid: currentUser.uid,
+                    authorEmail: currentUser.email
+                };
+
+                try {
+                    await addDoc(collection(db, 'bulletinPosts'), newPost);
+                    bulletinModal.classList.add('hidden');
+                    document.getElementById('form-add-bulletin').reset();
+                    showToast('掲示板に投稿しました', 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('投稿権限がありません', 'warning');
+                }
+            });
+
+            updateHeaderDateDisplay();
+        });
+    </script>
+</body>
+</html>
